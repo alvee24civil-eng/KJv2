@@ -70,16 +70,16 @@ h3{font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:var(--mut)
 .h em{font-style:normal;color:var(--ink);font-size:12px}
 .note{font-size:13px;color:var(--mut);margin:14px 0 0}
 
-/* ---- rule table ---- */
+/* ---- tables ---- */
 .tw{overflow-x:auto}
 table{width:100%;border-collapse:collapse;font-size:14px}
 th{font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--mut);font-weight:600;text-align:center;padding:0 6px 10px}
 th:first-child,td:first-child{text-align:left}
 td{padding:11px 6px;border-top:1px solid var(--line);text-align:center;white-space:nowrap}
 td small{display:block;color:var(--mut);font-size:11px}
-#rules tr{animation:row .55s cubic-bezier(.2,.8,.2,1) both}
-#rules tr:nth-child(2){animation-delay:.08s}#rules tr:nth-child(3){animation-delay:.16s}#rules tr:nth-child(4){animation-delay:.24s}
-#rules tr:hover{background:rgba(255,255,255,.05)}
+#rules tr,#src tr{animation:row .55s cubic-bezier(.2,.8,.2,1) both}
+#rules tr:nth-child(2),#src tr:nth-child(2){animation-delay:.08s}#rules tr:nth-child(3),#src tr:nth-child(3){animation-delay:.16s}#rules tr:nth-child(4),#src tr:nth-child(4){animation-delay:.24s}
+#rules tr:hover,#src tr:hover{background:rgba(255,255,255,.05)}
 .m{display:inline-flex;width:20px;height:20px;border-radius:50%;align-items:center;justify-content:center;font-size:11px;font-weight:700;margin-left:6px;vertical-align:middle;animation:pop .5s .4s cubic-bezier(.34,1.56,.64,1) both}
 .p{background:rgba(111,224,160,.18);color:#6fe0a0}
 .f{background:rgba(240,120,124,.18);color:#f0787c;animation:pop .5s .4s both,shake .6s 1s}
@@ -118,7 +118,7 @@ td small{display:block;color:var(--mut);font-size:11px}
       <div id="st">Loading</div><div id="ss">Fetching live forecast…</div>
       <div class="mets">
         <div><small>Cloud</small><b id="mc">--</b></div><div><small>Humidity</small><b id="mh">--</b></div>
-        <div><small>Visibility</small><b id="mv">--</b></div><div><small>Smog AOD · PM2.5</small><b id="ms">--</b></div>
+        <div><small id="vl">Avg visibility</small><b id="mv">--</b></div><div><small>Smog AOD · PM2.5</small><b id="ms">--</b></div>
       </div>
     </div>
   </section>
@@ -127,30 +127,37 @@ td small{display:block;color:var(--mut);font-size:11px}
 
   <section class="glass panel"><h3>Dawn timeline · best hour glows</h3><div class="hrs" id="hrs"></div><p class="note" id="best"></p></section>
 
+  <section class="glass panel"><h3>Sources · 06:00 to 08:00 average</h3>
+    <div class="tw"><table><thead><tr><th>Source</th><th>Cloud</th><th>Humidity</th><th>Visibility</th><th>Status</th></tr></thead><tbody id="src"></tbody></table></div>
+    <p class="note">Scores use the average of every source that answered. A ✗ means that source didn't respond.</p>
+  </section>
+
   <section class="glass panel"><h3>Rule check · 06:00 to 08:00</h3>
     <div class="tw"><table><thead><tr><th>Rule</th><th>Needed</th><th>06:00</th><th>07:00</th><th>08:00</th></tr></thead><tbody id="rules"></tbody></table></div>
     <p class="note" id="conf"></p>
   </section>
 
-  <p class="fine">An estimate from Open-Meteo weather model data, not a confirmed sighting. Cloud over the mountain itself can hide the range even when the local sky looks clear. Thresholds are starting values to tune against real mornings.</p>
+  <p class="fine">An estimate from weather model data, not a confirmed sighting. Cloud over the mountain itself can hide the range even when the local sky looks clear. Thresholds are starting values to tune against real mornings.</p>
 </main>
 
 <script>
 const LAT=26.5032,LON=88.344,TZ="Asia/Dhaka";
 const WIN=["06:00","07:00","08:00"],ALL=["04:00","05:00","06:00","07:00","08:00","09:00","10:00"];
-const NAMES=["Today","Tomorrow","Day 3"],BASE=[90,80,70];
+const NAMES=["Today","Tomorrow","Day 3"],BASE=[90,80,70],SRC=["Open-Meteo","MET Norway","wttr.in"];
 const PTS={cloud:30,vis:30,hum:20,smog:20},LBL={cloud:"Cloud cover",vis:"Visibility",hum:"Humidity",smog:"Smog"};
 const NEED={cloud:"low<30 · mid<30 · high<40%",vis:"8 km or more",hum:"under 90%",smog:"AOD<0.5 · PM2.5<100"};
 const BANDS=[[90,"Clear","Sharp view of the range","#6fe0a0"],[70,"Visible","Most of the range should show","#9fe08a"],[45,"Hazy","Peaks partly hidden by haze","#f0c060"],[20,"Cloudy","Mostly hidden under cloud","#f0a060"],[0,"Not visible","The range is hidden","#f0787c"]];
 const band=s=>BANDS.find(b=>s>=b[0]);
-const $=id=>document.getElementById(id), isNum=v=>typeof v==="number"&&Number.isFinite(v);
-const avg=a=>{a=a.filter(isNum);return a.length?a.reduce((x,y)=>x+y,0)/a.length:null};
+const $=id=>document.getElementById(id),isNum=v=>typeof v==="number"&&Number.isFinite(v);
+const mean=a=>{a=a.filter(isNum);return a.length?a.reduce((x,y)=>x+y,0)/a.length:null};
+const key=(d,hm)=>d+"|"+hm;
+const f=(x,u,dg=0)=>isNum(x)?x.toFixed(dg)+u:"—";
 
 function evaluate(v){
   const r={
     cloud:{miss:![v.cl,v.cm,v.ch].every(isNum),ok:v.cl<30&&v.cm<30&&v.ch<40,t:[v.cl,v.cm,v.ch].map(x=>isNum(x)?Math.round(x):"n/a").join(" · ")+"%"},
-    vis:{miss:!isNum(v.vis),ok:v.vis>=8,t:isNum(v.vis)?v.vis.toFixed(1)+" km":"n/a"},
-    hum:{miss:!isNum(v.hum),ok:v.hum<90,t:isNum(v.hum)?Math.round(v.hum)+"%":"n/a"},
+    vis:{miss:!isNum(v.vis),ok:v.vis>=8,t:f(v.vis," km",1).replace("—","n/a")},
+    hum:{miss:!isNum(v.hum),ok:v.hum<90,t:f(v.hum,"%").replace("—","n/a")},
     smog:{miss:!isNum(v.aod)||!isNum(v.pm),ok:v.aod<0.5&&v.pm<100,t:(isNum(v.aod)?v.aod.toFixed(2):"n/a")+" · "+(isNum(v.pm)?Math.round(v.pm):"n/a")}
   };
   let score=0;
@@ -166,38 +173,81 @@ async function getJ(url){
   const c=new AbortController(),t=setTimeout(()=>c.abort(),15000);
   try{const r=await fetch(url,{signal:c.signal});if(!r.ok)throw new Error("HTTP "+r.status);return await r.json()}finally{clearTimeout(t)}
 }
-function build(fc,aq){
-  const h=fc.hourly,a=(aq&&aq.hourly)||{time:[]},ai={},dates=[],by={};
-  a.time.forEach((t,j)=>ai[t]=j);
-  h.time.forEach((t,i)=>{
-    const[d,hm]=t.split("T");if(!ALL.includes(hm))return;
-    if(!by[d]){by[d]=[];dates.push(d)}
-    const j=ai[t];
-    const v={cl:h.cloud_cover_low[i],cm:h.cloud_cover_mid[i],ch:h.cloud_cover_high[i],vis:isNum(h.visibility[i])?h.visibility[i]/1000:null,hum:h.relative_humidity_2m[i],aod:j===undefined?null:a.aerosol_optical_depth[j],pm:j===undefined?null:a.pm2_5[j]};
-    by[d].push({hm,v,...evaluate(v)});
+
+/* ---------- sources: each returns {m:{"date|HH:MM":{cl,cm,ch,ct,vis,hum}}} ---------- */
+async function srcOM(){
+  const u=`https://api.open-meteo.com/v1/forecast?latitude=${LAT}&longitude=${LON}&timezone=${TZ}&forecast_days=3&hourly=cloud_cover_low,cloud_cover_mid,cloud_cover_high,visibility,relative_humidity_2m&daily=sunrise,sunset`;
+  const q=`https://air-quality-api.open-meteo.com/v1/air-quality?latitude=${LAT}&longitude=${LON}&timezone=${TZ}&forecast_days=3&hourly=aerosol_optical_depth,pm2_5`;
+  const[fc,aq]=await Promise.all([getJ(u),getJ(q).catch(()=>null)]);
+  const m={},a={},h=fc.hourly;
+  h.time.forEach((t,i)=>{const[d,hm]=t.split("T");
+    m[key(d,hm)]={cl:h.cloud_cover_low[i],cm:h.cloud_cover_mid[i],ch:h.cloud_cover_high[i],vis:isNum(h.visibility[i])?h.visibility[i]/1000:null,hum:h.relative_humidity_2m[i]}});
+  if(aq)aq.hourly.time.forEach((t,j)=>{const[d,hm]=t.split("T");a[key(d,hm)]={aod:aq.hourly.aerosol_optical_depth[j],pm:aq.hourly.pm2_5[j]}});
+  return{m,a,daily:fc.daily};
+}
+async function srcMET(){
+  const r=await getJ(`https://api.met.no/weatherapi/locationforecast/2.0/complete?lat=${LAT}&lon=${LON}`);
+  const m={};
+  r.properties.timeseries.forEach(x=>{
+    const t=new Date(new Date(x.time).getTime()+6*3600e3).toISOString(),i=x.data.instant.details;
+    m[key(t.slice(0,10),t.slice(11,16))]={cl:i.cloud_area_fraction_low,cm:i.cloud_area_fraction_medium,ch:i.cloud_area_fraction_high,hum:i.relative_humidity};
   });
-  const now=nowD(),dl=fc.daily||{};
-  return dates.slice(0,3).map((date,idx)=>{
-    const hrs=by[date],win=hrs.filter(x=>WIN.includes(x.hm));
-    const miss=new Set();
+  return{m};
+}
+async function srcWTTR(){
+  const r=await getJ(`https://wttr.in/${LAT},${LON}?format=j1`);
+  const m={};
+  r.weather.forEach(w=>{
+    const s={};w.hourly.forEach(h=>s[Math.round(h.time/100)]=h);
+    ALL.forEach(hm=>{
+      const H=+hm.slice(0,2),lo=Math.floor(H/3)*3,a=s[lo],b=s[lo+3];if(!a||!b)return;
+      const t=(H-lo)/3,L=(x,y)=>(+x)+((+y)-(+x))*t;
+      m[key(w.date,hm)]={vis:L(a.visibility,b.visibility),ct:L(a.cloudcover,b.cloudcover),hum:L(a.humidity,b.humidity)};
+    });
+  });
+  return{m};
+}
+
+/* ---------- merge + stats ---------- */
+function merged(k,res){
+  const g=fl=>mean(res.map(r=>r&&r.m[k]?r.m[k][fl]:null)),o=(res[0]&&res[0].a&&res[0].a[k])||{};
+  return{cl:g("cl"),cm:g("cm"),ch:g("ch"),vis:g("vis"),hum:g("hum"),aod:o.aod,pm:o.pm};
+}
+function stats(r,date){
+  if(!r)return null;
+  const ks=WIN.map(hm=>r.m[key(date,hm)]).filter(Boolean);if(!ks.length)return null;
+  return{
+    cloud:mean(ks.map(x=>{const c=[x.cl,x.cm,x.ch].filter(isNum);return c.length?Math.max(...c):x.ct})),
+    hum:mean(ks.map(x=>x.hum)),vis:mean(ks.map(x=>x.vis))};
+}
+function build(res){
+  const ds=new Set();res.forEach(r=>r&&Object.keys(r.m).forEach(k=>ds.add(k.split("|")[0])));
+  const now=nowD(),dl=(res[0]&&res[0].daily)||{};
+  return[...ds].sort().filter(d=>d>=now.date).slice(0,3).map((date,idx)=>{
+    const hrs=ALL.map(hm=>{const v=merged(key(date,hm),res);return{hm,v,...evaluate(v)}});
+    const win=hrs.filter(x=>WIN.includes(x.hm)),miss=new Set();
     win.forEach(x=>Object.keys(x.r).forEach(k=>{if(x.r[k].miss)miss.add(k)}));
+    const st=res.map(r=>stats(r,date)),ok=st.filter(Boolean);
+    const cl=ok.map(s=>s.cloud).filter(isNum),spread=cl.length?Math.max(...cl)-Math.min(...cl):0;
     const si=(dl.time||[]).indexOf(date);
-    return{date,hrs,win,miss:miss.size,
+    return{date,hrs,win,st,miss:miss.size,
       score:Math.round(win.reduce((s,x)=>s+x.score,0)/win.length),
       passed:date<now.date||(date===now.date&&now.hour>=8),
-      conf:Math.max(0,BASE[idx]-15*miss.size),
-      cloud:avg(win.map(x=>Math.max(...[x.v.cl,x.v.cm,x.v.ch].filter(isNum)))),
-      hum:avg(win.map(x=>x.v.hum)),vis:avg(win.map(x=>x.v.vis)),aod:avg(win.map(x=>x.v.aod)),pm:avg(win.map(x=>x.v.pm)),
+      conf:Math.max(0,BASE[idx]-15*miss.size-Math.round(spread*.25)-(3-ok.length)*5),
+      cloud:mean(ok.map(s=>s.cloud)),hum:mean(ok.map(s=>s.hum)),vis:mean(ok.map(s=>s.vis)),
+      nVis:ok.filter(s=>isNum(s.vis)).length,
+      aod:mean(win.map(x=>x.v.aod)),pm:mean(win.map(x=>x.v.pm)),
       sunrise:si>=0&&dl.sunrise?dl.sunrise[si].slice(11,16):"--:--"};
   });
 }
 
+/* ---------- render ---------- */
 let days=[],cur=0;
 const C=2*Math.PI*110,ARC=C*.75;
 function count(el,to){
   const from=parseFloat(el.dataset.v)||0;el.dataset.v=to;const t0=performance.now();
-  const f=n=>{const p=Math.min(1,(n-t0)/1000),e=1-Math.pow(1-p,3);el.textContent=Math.round(from+(to-from)*e)+"%";if(p<1)requestAnimationFrame(f)};
-  requestAnimationFrame(f);
+  const fn=n=>{const p=Math.min(1,(n-t0)/1000),e=1-Math.pow(1-p,3);el.textContent=Math.round(from+(to-from)*e)+"%";if(p<1)requestAnimationFrame(fn)};
+  requestAnimationFrame(fn);
 }
 function render(){
   if(!days.length)return;
@@ -210,15 +260,18 @@ function render(){
   gp.style.strokeDashoffset=(ARC*(1-d.score/100)).toFixed(1);gp.style.stroke=b[3];gp.style.color=b[3];
   count($("gn"),d.score);
   $("st").textContent=b[1];$("st").style.color=b[3];$("ss").textContent=b[2];$("sr").textContent=d.sunrise;
-  $("mc").textContent=isNum(d.cloud)?Math.round(d.cloud)+"%":"n/a";
-  $("mh").textContent=isNum(d.hum)?Math.round(d.hum)+"%":"n/a";
-  $("mv").textContent=isNum(d.vis)?d.vis.toFixed(1)+" km":"n/a";
+  $("mc").textContent=f(d.cloud,"%");$("mh").textContent=f(d.hum,"%");
+  $("mv").textContent=f(d.vis," km",1);
+  $("vl").textContent="Avg visibility · "+d.nVis+" source"+(d.nVis===1?"":"s");
   $("ms").textContent=(isNum(d.aod)?d.aod.toFixed(2):"n/a")+" · "+(isNum(d.pm)?Math.round(d.pm):"n/a");
 
-  const top=Math.max(...d.hrs.map(x=>x.score));
-  const bi=d.hrs.findIndex(x=>x.score===top);
+  const top=Math.max(...d.hrs.map(x=>x.score)),bi=d.hrs.findIndex(x=>x.score===top);
   $("hrs").innerHTML=d.hrs.map((x,i)=>`<div class="h ${WIN.includes(x.hm)?"win":""} ${i===bi?"best":""}"><em>${x.score}</em><i style="height:${Math.max(6,x.score*1.1)}px;animation-delay:${i*.07}s"></i>${x.hm}</div>`).join("");
   $("best").textContent=`Best hour: ${d.hrs[bi].hm} (${top} points). Lighter bars mark the 06:00 to 08:00 scoring window.`;
+
+  $("src").innerHTML=SRC.map((n,i)=>{const s=d.st[i];
+    return`<tr><td>${n}</td><td>${f(s&&s.cloud,"%")}</td><td>${f(s&&s.hum,"%")}</td><td>${f(s&&s.vis," km",1)}</td><td>${s?'<span class="m p">✓</span>':'<span class="m f">✗</span>'}</td></tr>`}).join("")
+    +`<tr><td><b>Average</b></td><td><b>${f(d.cloud,"%")}</b></td><td><b>${f(d.hum,"%")}</b></td><td><b>${f(d.vis," km",1)}</b></td><td></td></tr>`;
 
   const mk=x=>x.miss?'<span class="m q">?</span>':x.ok?'<span class="m p">✓</span>':'<span class="m f">✗</span>';
   $("rules").innerHTML=Object.keys(PTS).map(k=>`<tr><td>${LBL[k]}<small>${PTS[k]} pts</small></td><td>${NEED[k]}</td>${d.win.map(w=>`<td>${w.r[k].t}${mk(w.r[k])}</td>`).join("")}</tr>`).join("");
@@ -227,12 +280,11 @@ function render(){
 async function load(){
   $("up").textContent="Fetching…";
   try{
-    const f=`https://api.open-meteo.com/v1/forecast?latitude=${LAT}&longitude=${LON}&timezone=${TZ}&forecast_days=3&hourly=cloud_cover_low,cloud_cover_mid,cloud_cover_high,visibility,relative_humidity_2m&daily=sunrise,sunset`;
-    const q=`https://air-quality-api.open-meteo.com/v1/air-quality?latitude=${LAT}&longitude=${LON}&timezone=${TZ}&forecast_days=3&hourly=aerosol_optical_depth,pm2_5`;
-    const[fc,aq]=await Promise.all([getJ(f),getJ(q).catch(()=>null)]);
-    days=build(fc,aq);if(!days.length)throw new Error("no data");
+    const res=await Promise.all([srcOM(),srcMET(),srcWTTR()].map(p=>p.catch(e=>{console.warn("source failed:",e);return null})));
+    if(!res.some(Boolean))throw new Error("all sources failed");
+    days=build(res);if(!days.length)throw new Error("no data");
     cur=Math.max(0,days.findIndex(d=>!d.passed));render();
-    $("up").textContent=(aq?"":"No smog data · ")+"Live · "+new Date().toLocaleTimeString("en-GB",{timeZone:TZ,hour:"2-digit",minute:"2-digit"});
+    $("up").textContent=`Live · ${res.filter(Boolean).length}/3 sources · `+new Date().toLocaleTimeString("en-GB",{timeZone:TZ,hour:"2-digit",minute:"2-digit"});
   }catch(e){console.error(e);$("up").textContent="Could not load: "+e.message}
 }
 load();setInterval(load,30*60*1000);
