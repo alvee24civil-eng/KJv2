@@ -104,7 +104,7 @@ td small{display:block;color:var(--mut);font-size:11px}
 <div class="bg"><div class="photo"></div><div class="fog"><i></i><i></i><i></i></div><div class="shade"></div><div class="grain"></div></div>
 <main>
   <header>
-    <div><h1>Kanchenjunga Viewing Meter</h1><p class="sub">Live dawn visibility · Tetulia, Panchagarh</p></div>
+    <div><h1>Viewing Meter</h1><p class="sub">Dawn visibility · Tetulia,Panchagarh</p></div>
     <div class="live"><span class="dot"></span><span id="up">Connecting…</span></div>
   </header>
 
@@ -118,18 +118,18 @@ td small{display:block;color:var(--mut);font-size:11px}
       <div id="st">Loading</div><div id="ss">Fetching live forecast…</div>
       <div class="mets">
         <div><small>Cloud</small><b id="mc">--</b></div><div><small>Humidity</small><b id="mh">--</b></div>
-        <div><small id="vl">Avg visibility</small><b id="mv">--</b></div><div><small>Smog AOD · PM2.5</small><b id="ms">--</b></div>
+        <div><small id="vl">Average visibility</small><b id="mv">--</b></div><div><small>Smog AOD · PM2.5</small><b id="ms">--</b></div>
       </div>
     </div>
   </section>
 
   <div class="tabs" id="tabs"></div>
 
-  <section class="glass panel"><h3>Dawn timeline · best hour glows</h3><div class="hrs" id="hrs"></div><p class="note" id="best"></p></section>
+  <section class="glass panel"><h3>Dawn Timeline</h3><div class="hrs" id="hrs"></div><p class="note" id="best"></p></section>
 
   <section class="glass panel"><h3>Sources · 06:00 to 08:00 average</h3>
     <div class="tw"><table><thead><tr><th>Source</th><th>Cloud</th><th>Humidity</th><th>Visibility</th><th>Status</th></tr></thead><tbody id="src"></tbody></table></div>
-    <p class="note">Scores use the average of every source that answered. A ✗ means that source didn't respond.</p>
+    <p class="note">Scoring made based on  the average of every source that answered.</p>
   </section>
 
   <section class="glass panel"><h3>Rule check · 06:00 to 08:00</h3>
@@ -137,7 +137,7 @@ td small{display:block;color:var(--mut);font-size:11px}
     <p class="note" id="conf"></p>
   </section>
 
-  <p class="fine">An estimate from weather model data, not a confirmed sighting. Cloud over the mountain itself can hide the range even when the local sky looks clear. Thresholds are starting values to tune against real mornings.</p>
+  <p class="fine">An estimate from weather model data,not a confirmed sighting.</p>
 </main>
 
 <script>
